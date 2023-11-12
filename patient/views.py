@@ -6,6 +6,7 @@ from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.contrib.auth.hashers import make_password, check_password
 from .serializers import PatientSerializer
+from rest_framework.decorators import api_view
 
 # Create your views here.
 
@@ -22,6 +23,7 @@ mqtt_handler = MQTTHandler(broker_address, port, topic)
 mqtt_handler.connect()
 
 
+@api_view(["GET"])
 def get_all_patient(request):
     patients = Patient.objects.all().values()
     patients_list = list(patients)
@@ -30,6 +32,7 @@ def get_all_patient(request):
     return JsonResponse({"patients": patients_list}, safe=False, status=200)
 
 
+@api_view(["GET"])
 def get_patient(request, patient_id):
     try:
         patient = Patient.objects.get(pk=patient_id)
@@ -42,6 +45,7 @@ def get_patient(request, patient_id):
         return JsonResponse({"message": str(e)}, status=500)
 
 
+@api_view(["POST"])
 @csrf_exempt
 def post_patient(request):
     try:
