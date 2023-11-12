@@ -5,6 +5,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.contrib.auth.hashers import make_password, check_password
+from .serializers import PatientSerializer
 
 # Create your views here.
 
@@ -32,8 +33,8 @@ def get_all_patient(request):
 def get_patient(request, patient_id):
     try:
         patient = Patient.objects.get(pk=patient_id)
-        # TODO: Serialize patient object
-        return JsonResponse(patient.__dict__, safe=False, status=200)
+        serialzer = PatientSerializer(patient)
+        return JsonResponse(serialzer.data, safe=False, status=200)
     except Patient.DoesNotExist:
         return JsonResponse({"message": "Patient not found!"}, status=404)
     except Exception as e:
@@ -60,11 +61,12 @@ def post_patient(request):
             email=data["email"],
             password=hashed_password,
         )
+        serializer = PatientSerializer(new_patient)
         new_patient.save()
         return JsonResponse(
             {
                 "message": "Patient was added successfully!",
-                "patient": new_patient,
+                "patient": serializer.data,
             },
             status=201,
         )
