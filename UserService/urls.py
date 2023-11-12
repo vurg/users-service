@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from db_connection import check_db_connect
 
+
 urlpatterns = [
     # /
     path("", include("patient.urls")),

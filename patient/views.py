@@ -1,9 +1,15 @@
+import json
 from django.shortcuts import render
 from django.http import HttpResponse, JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
 
 # Create your views here.
 
 from mqtt_handler import MQTTHandler
+from .models import Patient
+
 
 broker_address = "broker.emqx.io"
 port = 1883
@@ -14,16 +20,51 @@ mqtt_handler = MQTTHandler(broker_address, port, topic)
 mqtt_handler.connect()
 
 
-def mqtt_connect(request):
-    # Initialize MQTTHandler with your broker address, port, and topic
+def get_all_patient(request):
+    patients = Patient.objects.all().values()
+    patients_list = list(patients)
+    if len(patients_list) == 0:
+        return JsonResponse({"message": "No patients found!"}, status=404)
+    return JsonResponse({"patients": patients_list}, safe=False, status=200)
 
-    # Connect to the MQTT broker
-    # Perform other tasks...
 
-    # Disconnect from the MQTT broker when done
-    # mqtt_handler.disconnect()
+def get_patient(request, patient_id):
+    try:
+        patient = Patient.objects.get(pk=patient_id)
+        # TODO: Serialize patient object
+        return JsonResponse(patient, safe=False, status=200)
+    except Patient.DoesNotExist:
+        return JsonResponse({"message": "Patient not found!"}, status=404)
+    except Exception as e:
+        print("Error: ", e)
+        return JsonResponse({"message": str(e)}, status=500)
 
-    return HttpResponse("MQTT")
+
+@csrf_exempt
+def post_patient(request):
+    try:
+        data = json.loads(request.body)
+        if not data["name"]:
+            raise ValidationError("Name is required")
+        if not data["email"]:
+            raise ValidationError("Email is required")
+        if not data["password"]:
+            raise ValidationError("Password is required")
+        validate_email(data["email"])  # From django.core.validators
+
+        new_patient = Patient(
+            name=data["name"],
+            email=data["email"],
+            password=data["password"],
+        )
+        new_patient.save()
+        return JsonResponse({"message": "Patient was added successfully!"}, status=201)
+    except ValidationError as e:
+        return JsonResponse({"message": e.message}, status=400)
+    except KeyError as e:
+        return JsonResponse({"message": f"{str(e)} is required"}, status=400)
+    except Exception as e:
+        return JsonResponse({"message": str(e)}, status=500)
 
 
 def index(request):
@@ -31,11 +72,6 @@ def index(request):
 
 
 def publish_message(request):
-    # Initialize MQTTHandler with your broker address, port, and topic
-
-    # mqtt_handler = MQTTHandler(broker_address, port, topic)
-    # mqtt_handler.connect()
-
     # Publish a message to the specified topic
     message = "Hello, MQTT!"
     try:
@@ -43,8 +79,4 @@ def publish_message(request):
         message_info.wait_for_publish(1.5)
     except TimeoutError as err:
         return JsonResponse(err)
-
-    # Disconnect from the MQTT broker
-    # mqtt_handler.disconnect()
-
     return HttpResponse(message_info.is_published())

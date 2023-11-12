@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "patient",
+    "rest_framework",  # Django REST framework
 ]
 
 MIDDLEWARE = [
