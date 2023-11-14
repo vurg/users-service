@@ -1,5 +1,6 @@
 # mqtt_handler.py
-import paho.mqtt.client as mqtt
+import paho.mqtt.client as paho
+from paho import mqtt
 
 
 # hivemq.webclient.1699615123087
@@ -11,17 +12,18 @@ class MQTTHandler:
         self.topic = topic
         self.username = username
         self.password = password
-        self.client = mqtt.Client()
+        self.client = paho.Client()
 
         # Set up callbacks
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
+        self.client.on_subscribe = self.on_subscribe
 
-    def on_connect(self, client, userdata, flags, rc):
+    def on_connect(self, client, userdata, flags, rc, properties=None):
         if rc == 0:
             print("Connected to MQTT broker")
             # Subscribe to the topic when connected
-            client.subscribe(self.topic)
+            self.client.subscribe(self.topic)
         elif rc == 1:
             print("Connection refused - incorrect protocol version")
         elif rc == 2:
@@ -35,6 +37,24 @@ class MQTTHandler:
         else:
             print(f"Connection failed with result code {rc}")
 
+    # def on_connect(self, client, userdata, flags, rc):
+    #     if rc == 0:
+    #         print("Connected to MQTT broker")
+    #         # Subscribe to the topic when connected
+    #         client.subscribe(self.topic)
+    #     elif rc == 1:
+    #         print("Connection refused - incorrect protocol version")
+    #     elif rc == 2:
+    #         print("Connection refused - invalid client identifier")
+    #     elif rc == 3:
+    #         print("Connection refused - server unavailable")
+    #     elif rc == 4:
+    #         print("Connection refused - bad username or password")
+    #     elif rc == 5:
+    #         print("Connection refused - not authorized")
+    #     else:
+    #         print(f"Connection failed with result code {rc}")
+
     def on_message(self, client, userdata, message, tmp=None):
         print(
             "Received message "
@@ -46,13 +66,16 @@ class MQTTHandler:
         )
 
     def connect(self):
+        self.protocol = "paho.MQTTv5"
+        self.client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
         try:
             # Set username and password if provided
             if self.username and self.password:
+
                 self.client.username_pw_set(self.username, self.password)
 
             # Connect to the MQTT broker
-            self.client.connect(self.broker_address, self.port, 60)
+            self.client.connect(self.broker_address, self.port)
 
             # Start the MQTT loop
             self.client.loop_start()
@@ -62,3 +85,6 @@ class MQTTHandler:
     def disconnect(self):
         # Disconnect from the MQTT broker
         self.client.disconnect()
+
+    def on_subscribe(self, client, userdata, mid, granted_qos, properties=None):
+        print("Subscribed to topic!")

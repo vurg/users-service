@@ -1,12 +1,17 @@
+import datetime
 import json
 from django.shortcuts import render
-from django.http import HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.contrib.auth.hashers import make_password, check_password
 from .serializers import PatientSerializer
+
 from rest_framework.decorators import api_view
+from rest_framework.viewsets import ModelViewSet
+from rest_framework import status, response
+from rest_framework.exceptions import NotFound
 
 # Create your views here.
 
@@ -14,17 +19,36 @@ from mqtt_handler import MQTTHandler
 from .models import Patient
 
 
-broker_address = "broker.emqx.io"
-port = 1883
-topic = "Userservice"
+# broker_address = "broker.emqx.io"
+# port = 1883
+# topic = "Userservice"
 # username = "hivemq.webclient.1699615123087"
 # password = "Hqd:<e;24G!I7wABkvL9"
-mqtt_handler = MQTTHandler(broker_address, port, topic)
+
+broker_address = "06c9231f22d4457abe0282a4302eda82.s2.eu.hivemq.cloud"
+port = 8883
+topic = "Userservice"
+username = "toothcheck"
+password = "5vuiygrR6vygB!"
+
+logger_topic = "Logger"
+
+mqtt_handler = MQTTHandler(broker_address, port, topic, username, password)
 mqtt_handler.connect()
 
+class PatientViewSet(ModelViewSet):
+    queryset = Patient.objects.all()
+    serializer_class = PatientSerializer
+    allowed_methods = ['get', 'post', 'put', 'patch', 'delete']
+
+def mqtt_logger(request, method):
+    #format string into : method url current time
+    formatted_string = f"{method} {request.path} {datetime.datetime.now()}"
+    mqtt_handler.client.publish(logger_topic, formatted_string)
 
 @api_view(["GET"])
 def get_all_patient(request):
+    mqtt_logger(request, "GET")
     patients = Patient.objects.all().values()
     patients_list = list(patients)
     if len(patients_list) == 0:
@@ -34,10 +58,11 @@ def get_all_patient(request):
 
 @api_view(["GET"])
 def get_patient(request, patient_id):
+    mqtt_logger(request, "GET")
     try:
         patient = Patient.objects.get(pk=patient_id)
-        serialzer = PatientSerializer(patient)
-        return JsonResponse(serialzer.data, safe=False, status=200)
+        serializer = PatientSerializer(patient)
+        return JsonResponse(serializer.data, safe=False, status=200)
     except Patient.DoesNotExist:
         return JsonResponse({"message": "Patient not found!"}, status=404)
     except Exception as e:
@@ -48,6 +73,7 @@ def get_patient(request, patient_id):
 @api_view(["POST"])
 @csrf_exempt
 def post_patient(request):
+    mqtt_logger(request, "POST")
     try:
         data = json.loads(request.body)
         if not data["name"]:
@@ -82,16 +108,48 @@ def post_patient(request):
         return JsonResponse({"message": str(e)}, status=500)
 
 
+@api_view(["PATCH"])
+@csrf_exempt
+def patch_patient(request, patient_id):
+    mqtt_logger(request, "PATCH")
+    try:
+        patient = Patient.objects.get(pk=patient_id)
+        request_data = json.loads(request.body)
+        for each in request_data.keys():
+            if hasattr(patient, each):
+                setattr(patient, each, request_data[each])
+            patient.save()
+            return JsonResponse({"message": "Patient was updated successfully!"}, status=200)
+
+    except Patient.DoesNotExist:
+        return JsonResponse({"message": "Patient not found!"}, status=404)
+
+@api_view(["DELETE"])
+@csrf_exempt
+def delete_patient(request, patient_id):
+    mqtt_logger(request, "DELETE")
+    try:
+        patient = Patient.objects.get(pk=patient_id)
+        patient.delete()
+        return JsonResponse({"message": "Patient was deleted successfully!"}, status=200)
+    except Patient.DoesNotExist:
+        return JsonResponse({"message": "Patient not found!"}, status=404)
+    except Exception as e:
+        return JsonResponse({"message": str(e)}, status=500)
+
 def index(request):
     return HttpResponse("Patient app is running")
 
 
-def publish_message(request):
+def publish_message(message):
     # Publish a message to the specified topic
-    message = "Hello, MQTT!"
     try:
         message_info = mqtt_handler.client.publish(topic, message)
         message_info.wait_for_publish(1.5)
     except TimeoutError as err:
         return JsonResponse(err)
     return HttpResponse(message_info.is_published())
+
+def test_mqtt(request):
+    publish_message("Hello from Django!")
+    return HttpResponse("Message published")

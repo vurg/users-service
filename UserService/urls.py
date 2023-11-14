@@ -16,13 +16,15 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from db_connection import check_db_connect
+from patient import views
+from rest_framework import routers
 
+router = routers.DefaultRouter()
+router.register(r"patient", views.PatientViewSet)
 
 urlpatterns = [
     # /
-    path("", include("patient.urls")),
+    path("", include(router.urls)),
     path("admin/", admin.site.urls),
 ]
 
-check_db_connect()

@@ -31,6 +31,8 @@ DEBUG = env("DEBUG")
 
 ALLOWED_HOSTS = []
 
+APPEND_SLASH = True
+
 
 # Application definition
 
